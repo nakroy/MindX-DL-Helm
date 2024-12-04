@@ -1,0 +1,242 @@
+{{- if .Values.npuExporter.enabled }}
+{{- if eq (include "hasNpuType" (list "310p-1usoc" .Values.global.npuType)) "true" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: npu-exporter
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: 310p-1usoc-script
+  namespace: npu-exporter
+data:
+  run_for_310P-1usoc.sh: |
+    #!/bin/bash
+    set -e
+    os="$(cat /etc/*release* | grep -i "ubuntu")"
+    if [[ "$os" != "" ]]; then
+        echo -e "[INFO]\t $(date +"%F %T:%N")\t use ubuntu image, so create soft link \"/lib64\" for \"/lib\""
+        ln -s /lib /lib64 2>&1 >> /dev/null
+    fi
+    umask 027
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t create driver's related directory"
+    mkdir -m 750 /var/driver -m 750 /var/dmp -m 750 /usr/slog -p -m 750 /home/drv/hdc_ppc
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t modify owner and permission"
+    chown HwDmUser:HwDmUser /var/dmp
+    chown HwHiAiUser:HwHiAiUser /var/driver
+    chown HwHiAiUser:HwHiAiUser /home/drv/hdc_ppc
+    chown HwHiAiUser:HwHiAiUser /usr/slog
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t start slogd server in background"
+    su - HwHiAiUser -c "export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/:/usr/lib64 && /var/slogd -d &"
+    su - HwDmUser -c "export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/:/usr/lib64 && /var/dmp_daemon -I -M -U 8087 &"
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/add-ons:/usr/local/Ascend/driver/lib64:/usr/local/dcmi
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t start npu-exporter server"
+    /usr/local/bin/npu-exporter {{ .Values.npuExporter.args | include "extraArgs.line" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: exporter-network-policy
+  namespace: npu-exporter
+spec:
+  podSelector:
+    matchLabels:
+      app: npu-exporter
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: prometheus
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: prometheus
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: npu-exporter-310p-1usoc
+  namespace: npu-exporter
+spec:
+  selector:
+    matchLabels:
+      app: npu-exporter
+  template:
+    metadata:
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+      labels:
+        app: npu-exporter
+      {{- if .Values.npuExporter.additionalLabels }}
+        {{- toYaml .Values.npuExporter.additionalLabels | nindent 8 }}
+      {{- end }}
+    spec:
+    {{- with .Values.npuExporter.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+        servertype: soc
+    {{- end }}
+      initContainers:
+        {{- include "initContainer.createDir" (dict 
+          "path" (include "extractPath" .Values.npuExporter.args.logFile)
+          "owner" "root:root"
+          "mountPath" "/var/log/mindx-dl"
+        ) | nindent 8 }}
+      containers:
+        - name: npu-exporter
+          image: {{ .Values.npuExporter.image.repository | default (printf "%s/%s" .Values.global.imageRegistry "npu-exporter") }}:{{ .Values.npuExporter.image.tag | default .Values.global.imageTag }}
+        {{- with .Values.npuExporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          imagePullPolicy: {{ .Values.npuExporter.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          command: [ "/bin/bash", "-c", "/scripts/run_for_310P_1usoc.sh"]
+        {{- with .Values.npuExporter.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          ports:
+          - name: http
+            containerPort: {{ .Values.npuExporter.args.port }}
+            protocol: TCP
+          volumeMounts:
+          - name: 310p-1usoc-script
+            mountPath: /scripts/run_for_310P_1usoc.sh
+            subPath: run_for_310P_1usoc.sh
+          - name: log-npu-exporter
+            mountPath: {{ .Values.npuExporter.args.logFile | include "extractPath" }}
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+          - name: ascend-driver
+            mountPath: /usr/local/Ascend/driver
+            readOnly: true
+          - name: ascend-dcmi
+            mountPath: /usr/local/dcmi
+            readOnly: true
+          - name: libyaml
+            mountPath: /usr/lib64/libyaml-0.so.2
+            readOnly: true 
+          - name: sys
+            mountPath: /sys
+            readOnly: true
+          - name: tmp
+            mountPath: /tmp
+          - name: dmp
+            mountPath: /var/dmp_daemon
+            readOnly: true
+          - name: slogd
+            mountPath: /var/slogd
+            readOnly: true
+          - name: hbasic
+            mountPath: /etc/hdcBasic.cfg
+            readOnly: true
+          - name: slogconf
+            mountPath: /etc/slog.conf
+            readOnly: true
+        {{- if eq .Values.npuExporter.args.containerMode "isulad" }}
+          - name: isulad
+            mountPath: /run/isulad.sock
+        {{- else }}
+          - name: containerd
+            mountPath: /run/containerd
+            readOnly: true
+        {{- end }}
+        {{- if and (eq .Values.npuExporter.args.containerMode "docker") (not .Values.npuExporter.mountSock) }}
+          - name: docker-shim
+            mountPath: /var/run/dockershim.sock
+            readOnly: true
+          - name: docker
+            mountPath: /var/run/docker
+          {{- if eq .Values.global.containerMode "cri-docker" }}
+          - name: cir-dockerd
+            mountPath: /var/run/cri-dockerd.sock
+            readOnly: true
+          {{- end }}
+        {{- else if and (eq .Values.npuExporter.args.containerMode "docker") (.Values.npuExporter.mountSock) }}
+          - name: sock
+            mountPath: {{ .Values.npuExporter.args.mountSockPath }}
+        {{- end }}
+      volumes:
+      - name: mindx-dl-log
+        hostPath:
+          path: /var/log/mindx-dl
+          type: DirectoryOrCreate
+      - name: 310p-1usoc-script
+        configMap:
+          name: 310p-1usoc-script
+      - name: log-npu-exporter
+        hostPath:
+          path: {{ .Values.npuExporter.args.logFile | include "extractPath" }}
+          type: Directory
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      - name: ascend-driver
+        hostPath:
+          path: /usr/local/Ascend/driver
+      - name: ascend-dcmi
+        hostPath:
+          path: /usr/local/dcmi
+      - name: libyaml
+        hostPath:
+          path: /usr/lib64/libyaml-0.so.2
+          type: File
+      - name: sys
+        hostPath:
+          path: /sys
+        readOnly: true
+      - name: tmp
+        hostPath:
+          path: /tmp
+      - name: dmp
+        hostPath:
+          path: /var/dmp_daemon
+          type: File
+      - name: slogd
+        hostPath:
+          path: /var/slogd
+          type: File
+      - name: hbasic
+        hostPath:
+          path: /etc/hdcBasic.cfg
+          type: File
+      - name: slogconf
+        hostPath:
+          path: /etc/slog.conf
+          type: File
+    {{- if eq .Values.npuExporter.args.containerMode "isulad" }}
+      - name: isulad
+        hostPath:
+          path: /run/isulad.sock
+    {{- else }}
+      - name: containerd
+        hostPath:
+          path: /run/containerd
+    {{- end }}
+    {{- if and (eq .Values.npuExporter.args.containerMode "docker") (not .Values.npuExporter.mountSock) }}
+      - name: docker-shim
+        hostPath:
+          path: /var/run/dockershim.sock
+      - name: docker
+        hostPath:
+          path: /var/run/docker
+      {{- if eq .Values.global.containerMode "cri-docker" }}
+      - name: cir-dockerd
+        hostPath:
+          path: /var/run/cri-dockerd.sock
+      {{- end }}
+    {{- else if and (eq .Values.npuExporter.args.containerMode "docker") (.Values.npuExporter.mountSock) }}
+      - name: sock
+        hostPath:
+          path: {{ .Values.npuExporter.args.mountSockPath }}
+    {{- end }}
+{{- end }}
+{{- end }}

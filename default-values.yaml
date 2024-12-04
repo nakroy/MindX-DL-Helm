@@ -1,0 +1,116 @@
+global:
+  npuType: ["310p", "910", "310p-1usoc"]
+  containerMode: "docker"
+  imageRegistry: "wuzhou-harbor.com/mindx-dl"
+  imagePullSecrets: []
+  imagePullPolicy: "IfNotPresent"
+  imageTag: "v6.0.RC3"
+  storageClass: ""
+
+ascend-device-plugin:
+  enabled: true
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  additionalLabels: {}
+  nodeSelector:
+    workerselector: dls-worker-node
+  args:
+    useAscendDocker: true
+    volcanoType: true
+    presetVirtualDevice: true
+    logFile: /var/log/mindx-dl/devicePlugin/devicePlugin.log
+    logLevel: 0
+    hotReset: -1
+
+npuExporter:
+  enabled: true
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  additionalLabels: {}
+  nodeSelector:
+    workerselector: dls-worker-node
+  resources:
+    requests:
+        memory: 1000Mi
+        cpu: 1000m
+    limits:
+        memory: 1000Mi
+        cpu: 1000m
+  args:
+    port: 8082
+    ip: 0.0.0.0
+    updateTime: 5
+    logFile: /var/log/mindx-dl/npu-exporter/npu-exporter.log
+    logLevel: 0 
+    containerMode: docker
+  securityContext:
+    privileged: true
+    readOnlyRootFilesystem: true
+    runAsUser: 0
+    runAsGroup: 0
+  mountSock: false
+  mountSockPath: 
+  extraVolumeMounts: []
+  extraVolumes: []
+    
+
+noded:
+  enabled: true
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  additionalLabels: {}
+  nodeSelector:
+    workerselector: dls-worker-node
+  resources:
+    requests:
+      memory: 300Mi
+      cpu: 500m
+    limits:
+      memory: 300Mi
+      cpu: 500m
+  args:
+    heartbeatInterval: 5
+    logLevel: 0
+    logFile: /var/log/mindx-dl/noded/noded.log
+  securityContext:
+    readOnlyRootFilesystem: true
+    privileged: true
+  mountSock: true
+  extraVolumeMounts: []
+  extraVolumes: []
+
+clusterd:
+  enabled: true
+  replicas: 1 
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  additionalLabels: {}
+  nodeSelector:
+    workerselector: dls-worker-node
+  resources:
+    requests:
+      memory: 300Mi
+      cpu: 500m
+    limits:
+      memory: 300Mi
+      cpu: 500m
+  args:
+    heartbeatInterval: 5
+    logLevel: 0
+    logFile: /var/log/mindx-dl/noded/noded.log
+  securityContext:
+    readOnlyRootFilesystem: true
+    privileged: true
+  mountSock: true
+  extraVolumeMounts: []
+  extraVolumes: []
+
+
