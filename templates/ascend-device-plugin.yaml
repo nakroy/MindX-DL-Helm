@@ -1,0 +1,301 @@
+{{- if .Values.ascendDevicePlugin.enabled }}
+{{- $global := .Values.global }}
+{{- $ascendDevicePlugin := .Values.ascendDevicePlugin }}
+{{- range $global.npuType }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ascend-device-plugin-sa-{{ . }}
+  namespace: kube-system
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pods-node-ascend-device-plugin-role-{{ . }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "update", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes/status"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+  {{- if eq . "910" }}
+    verbs: ["get", "create", "update", "list", "watch"]
+  {{- else }}
+    verbs: ["get", "create", "update"]
+  {{- end }}
+  - apiGroups: [ "" ]
+    resources: [ "events" ]
+    verbs: [ "create" ]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pods-node-ascend-device-plugin-rolebinding-{{ . }}
+subjects:
+  - kind: ServiceAccount
+    name: ascend-device-plugin-sa-{{ . }}
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: pods-node-ascend-device-plugin-role-{{ . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- if eq . "310p-1usoc" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: 310p-1usoc-script
+  namespace: kube-system
+data:
+  run_for_310P-1usoc.sh: |
+    #!/bin/bash
+    set -e
+    # create soft link for ubuntu image
+    os="$(cat /etc/*release* | grep -i "ubuntu")"
+    if [[ "$os" != "" ]]
+    then
+        echo -e "[INFO]\t $(date +"%F %T:%N")\t use ubuntu image, so create soft link \"/lib64\" for \"/lib\""
+        ln -s /lib /lib64 2>&1 >> /dev/null
+    fi
+    
+    umask 027
+
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t create driver's related directory"
+    mkdir -m 750 /var/driver -m 750 /var/dmp -m 750 /usr/slog -p -m 750 /home/drv/hdc_ppc
+    
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t modify owner and permission"
+    chown HwDmUser:HwDmUser /var/dmp
+    chown HwHiAiUser:HwHiAiUser /var/driver
+    chown HwHiAiUser:HwHiAiUser /home/drv/hdc_ppc
+    chown HwHiAiUser:HwHiAiUser /usr/slog
+    # log process run in background
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t start slogd server in background"
+    su - HwHiAiUser -c "export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/:/usr/lib64 && /var/slogd -d &"
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t start dmp_daemon server in background"
+    # dcmi interface process run in background
+    su - HwDmUser -c "export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/:/usr/lib64 && /var/dmp_daemon -I -M -U 8087 &"
+    
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/add-ons:/usr/local/Ascend/driver/lib64:/usr/local/dcmi
+    echo -e "[INFO]\t $(date +"%F %T:%N")\t start ascend device plugin server"
+    /usr/local/bin/device-plugin {{ $ascendDevicePlugin.args | include "extraArgs" }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ascend-device-plugin2-daemonset-{{ . }}
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: ascend-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+      labels:
+        name: ascend-device-plugin-ds
+    spec:
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+      {{- if eq . "310" }}
+        - key: huawei.com/Ascend310
+      {{- else if or (eq . "310p") (eq . "310p-1usoc") }}
+        - key: huawei.com/Ascend310P
+      {{- else }}
+        - key: huawei.com/Ascend910
+      {{- end }}
+          operator: "Equal"
+          value: "2"
+          effect: NoSchedule
+      priorityClassName: "system-node-critical"
+      nodeSelector:
+      {{- if eq . "310" }}
+        accelerator: huawei-Ascend310
+      {{- else if eq . "310p-1usoc" }}
+        accelerator: huawei-Ascend310P
+        servertype: soc
+      {{- else if eq . "310p" }}
+        accelerator: huawei-Ascend310P
+      {{- else }}
+        accelerator: huawei-Ascend910
+      {{- end }}
+    {{- if eq . "310p" }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: servertype
+                    operator: NotIn
+                    values:
+                      - soc
+    {{- end }}
+      serviceAccountName: ascend-device-plugin-sa-{{ . }}
+      initContainers:
+        {{- include "initContainer.createDir" (dict 
+          "path" (include "extractPath" $ascendDevicePlugin.args.logFile)
+          "owner" "root:root"
+          "mountPath" "/var/log/mindx-dl"
+        ) | nindent 8 }}
+      containers:
+        - name: device-plugin-01
+          image: {{ $ascendDevicePlugin.image.repository | default (printf "%s/%s" $global.imageRegistry "ascend-k8sdeviceplugin") }}:{{ $ascendDevicePlugin.image.tag | default $global.imageTag }}
+        {{- with $ascendDevicePlugin.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          imagePullPolicy: {{ $ascendDevicePlugin.image.pullPolicy | default $global.imagePullPolicy }}
+        {{- if eq . "310p-1usoc" }}
+          command: [ "/bin/bash", "-c", "/scripts/run_for_310P_1usoc.sh"]
+          securityContext:
+            privileged: true
+        {{- else }}
+          command: [ "/bin/bash", "-c", "--"]
+          args:
+          - |
+            device-plugin {{ include "extraArgs" $ascendDevicePlugin.args }}
+          securityContext:
+            privileged: true
+            readOnlyRootFilesystem: true
+        {{- end }}
+          volumeMounts:
+          - name: device-plugin
+            mountPath: /var/lib/kubelet/device-plugins
+          - name: pod-resource
+            mountPath: /var/lib/kubelet/pod-resources
+          - name: hiai-driver
+            mountPath: /usr/local/Ascend/driver
+            readOnly: true
+          - name: log-path
+            mountPath: {{ $ascendDevicePlugin.args.logFile | include "extractPath" }}
+          - name: tmp
+            mountPath: /tmp
+        {{- if eq . "310p-1usoc" }}
+          - name: dmp
+            mountPath: /var/dmp_daemon
+            readOnly: true
+          - name: slogd
+            mountPath: /var/slogd
+            readOnly: true
+          - name: libyaml
+            mountPath: /usr/lib64/libyaml-0.so.2
+            readOnly: true
+          - name: hbasic
+            mountPath: /etc/hdcBasic.cfg
+            readOnly: true
+          - name: slogconf
+            mountPath: /etc/slog.conf
+            readOnly: true
+          - name: 310p-1usoc-script
+            mountPath: /scripts/run_for_310P_1usoc.sh
+            subPath: run_for_310P_1usoc.sh
+        {{- else if and (eq . "310p") $ascendDevicePlugin.withVolcano }}
+          - name: vnpucfg
+            mountPath: /etc/vnpu.cfg
+        {{- else if eq . "910" }}
+          - name: lingqu-log
+            mountPath: /var/log/lingqu
+          {{- if $ascendDevicePlugin.withVolcano }}
+          - name: reset-config-dir
+            mountPath: /user/restore/reset
+          - name: vnpucfg
+            mountPath: /etc/vnpu.cfg
+          - name: vnpu-cut
+            mountPath: /run/vnpu_cfg_lock
+          {{- end }}
+        {{- end }}
+        {{- with $ascendDevicePlugin.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+        {{- end }}          
+          env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+      volumes:
+      - name: mindx-dl-log
+        hostPath:
+          path: /var/log/mindx-dl
+          type: DirectoryOrCreate
+      - name: device-plugin
+        hostPath:
+          path: /var/lib/kubelet/device-plugins
+      - name: pod-resource
+        hostPath:
+          path: /var/lib/kubelet/pod-resources
+      - name: hiai-driver
+        hostPath:
+          path: /usr/local/Ascend/driver
+      - name: log-path
+        hostPath:
+          path: {{ $ascendDevicePlugin.args.logFile | include "extractPath" }}
+          type: Directory
+      - name: tmp
+        hostPath:
+          path: /tmp
+    {{- if eq . "310p-1usoc" }}
+      - name: dmp
+        hostPath:
+          path: /var/dmp_daemon
+          type: File
+      - name: slogd
+        hostPath:
+          path: /var/slogd
+          type: File
+      - name: libyaml
+        hostPath:
+          path: /usr/lib64/libyaml-0.so.2
+          type: File
+      - name: hbasic
+        hostPath:
+          path: /etc/hdcBasic.cfg
+          type: File
+      - name: slogconf
+        hostPath:
+          path: /etc/slog.conf
+          type: File
+      - name: 310p-1usoc-script
+        configMap:
+          name: 310p-1usoc-script
+    {{- else if and (eq . "310p") $ascendDevicePlugin.withVolcano }}
+      - name: vnpucfg
+        hostPath:
+          path: /etc/vnpu.cfg
+          type: File
+    {{- else if eq . "910" }}
+      - name: lingqu-log
+        hostPath:
+          path: /var/log/lingqu
+          type: DirectoryOrCreate
+      {{- if $ascendDevicePlugin.withVolcano }}
+      - name : reset-config-dir
+        hostPath:
+          path: /user/restore/reset
+          type: DirectoryOrCreate
+      - name: vnpu-cut
+        hostPath:
+          path: /run/vnpu_cfg_lock
+          type: DirectoryOrCreate
+      - name: vnpucfg
+        hostPath:
+          path: /etc/vnpu.cfg
+          type: File
+      {{- end }}
+    {{- end }}
+    {{- with $ascendDevicePlugin.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+---
+{{- end }}
+{{- end }}

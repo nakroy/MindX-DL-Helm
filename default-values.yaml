@@ -1,21 +1,19 @@
 global:
-  npuType: ["310p", "910", "310p-1usoc"]
-  containerMode: "docker"
+  # npuType: ["310p", "910", "310p-1usoc"]
+  npuType: ["910"]
+  containerMode: "containerd"
   imageRegistry: "wuzhou-harbor.com/mindx-dl"
-  imagePullSecrets: []
-  imagePullPolicy: "IfNotPresent"
   imageTag: "v6.0.RC3"
-  storageClass: ""
+  imagePullPolicy: "IfNotPresent"
 
-ascend-device-plugin:
+####################
+ascendDevicePlugin:
   enabled: true
+  withVolcano: true
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
-  additionalLabels: {}
-  nodeSelector:
-    workerselector: dls-worker-node
   args:
     useAscendDocker: true
     volcanoType: true
@@ -24,13 +22,78 @@ ascend-device-plugin:
     logLevel: 0
     hotReset: -1
 
+##############
+ascendOperator:
+  enabled: true
+  replicas: 1 
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  nodeSelector:
+    masterselector: dls-master-node
+  resources:
+    requests:
+      memory: 3Gi
+      cpu: 2000m
+    limits:
+      memory: 3Gi
+      cpu: 2000m
+  args:
+    logLevel: 0
+    logFile: /var/log/mindx-dl/ascend-operator/ascend-operator.log
+    enableGangScheduling: true
+    kubeApiQps: 800
+    kubeApiBurst: 800
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsUser: 9000
+    runAsGroup: 9000
+    capabilities:
+      drop: ["All"]
+  extraVolumeMounts: []
+  extraVolumes: []
+
+####################
+hcclController:
+  enabled: true
+  replicas: 1 
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  nodeSelector:
+    masterselector: dls-master-node
+  resources:
+    requests:
+      memory: 300Mi
+      cpu: 500m
+    limits:
+      memory: 300Mi
+      cpu: 500m
+  args:
+    logLevel: 0
+    logFile: /var/log/mindx-dl/hccl-controller/hccl-controller.log
+    jobParallelism: 1
+    podParallelism: 1
+    kubeApiQps: 200
+    kubeApiBurst: 200
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  extraVolumeMounts: []
+  extraVolumes: []
+
+##################
 npuExporter:
   enabled: true
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
-  additionalLabels: {}
   nodeSelector:
     workerselector: dls-worker-node
   resources:
@@ -46,7 +109,7 @@ npuExporter:
     updateTime: 5
     logFile: /var/log/mindx-dl/npu-exporter/npu-exporter.log
     logLevel: 0 
-    containerMode: docker
+    containerMode: containerd
   securityContext:
     privileged: true
     readOnlyRootFilesystem: true
@@ -57,7 +120,7 @@ npuExporter:
   extraVolumeMounts: []
   extraVolumes: []
     
-
+####################
 noded:
   enabled: true
   image:
@@ -81,10 +144,10 @@ noded:
   securityContext:
     readOnlyRootFilesystem: true
     privileged: true
-  mountSock: true
   extraVolumeMounts: []
   extraVolumes: []
 
+##################
 clusterd:
   enabled: true
   replicas: 1 
@@ -92,9 +155,37 @@ clusterd:
     repository: ""
     tag: ""
     pullPolicy: ""
-  additionalLabels: {}
   nodeSelector:
-    workerselector: dls-worker-node
+    masterselector: dls-master-node
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 1000m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+  args:
+    logLevel: 0
+    logFile: /var/log/mindx-dl/clusterd/clusterd.log
+  securityContext:
+    readOnlyRootFilesystem: true
+  extraVolumeMounts: []
+  extraVolumes: []
+  service:
+    port: 8899
+    targetPort: 8899
+
+#################
+resilienceController:
+  enabled: true
+  replicas: 1
+  useServiceAccount: true
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: ""
+  nodeSelector:
+    masterselector: dls-master-node
   resources:
     requests:
       memory: 300Mi
@@ -103,14 +194,114 @@ clusterd:
       memory: 300Mi
       cpu: 500m
   args:
-    heartbeatInterval: 5
     logLevel: 0
-    logFile: /var/log/mindx-dl/noded/noded.log
+    logFile: /var/log/mindx-dl/resilience-controller/run.log
   securityContext:
+    allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
-    privileged: true
-  mountSock: true
+    capabilities:
+      drop: ["ALL"]
   extraVolumeMounts: []
   extraVolumes: []
 
-
+####################
+volcano:
+  enabled: true
+  version: "v1.9.0"
+  arch: aarch64
+  # volcano scheduler
+  scheduler:
+    enableNodeOrder: false
+    enableMultiSchedule: false
+    replicas: 1
+    image:
+      repository: ""
+      tag: ""
+      pullPolicy: ""
+    nodeSelector:
+      masterselector: dls-master-node
+      beta.kubernetes.io/arch: arm64
+    resources:
+      requests:
+        memory: 4Gi
+        cpu: 5500m
+      limits:
+        memory: 8Gi
+        cpu: 5500m
+    args:
+      grace-over-time: 900
+      presetVirtualDevice: true
+      nslb-version: 1.0
+      shared-tor-num: 2
+      useClusterInfoManager: true
+      super-pod-size: 48
+      reserve-nodes: 2
+    logDir: /var/log/mindx-dl/volcano-scheduler
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsUser: 9000
+      runAsGroup: 9000
+      capabilities:
+        drop: ["ALL"]
+    service:
+      enabled: true
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+      port: 8080
+      targetPort: 8080
+    extraVolumeMounts: []
+    extraVolumes: []
+  # volcano controller
+  controller:
+    replicas: 1
+    image:
+      repository: ""
+      tag: ""
+      pullPolicy: ""
+    nodeSelector:
+      masterselector: dls-master-node
+      beta.kubernetes.io/arch: arm64
+    resources:
+      requests:
+        memory: 3Gi
+        cpu: 2000m
+      limits:
+        memory: 3Gi
+        cpu: 2000m
+    args:
+      kubeApiQps: 800
+      kubeApiBurst: 800
+      workerThreads: 6
+      logDir: /var/log/mindx-dl/volcano-controller
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsUser: 9000
+      runAsGroup: 9000
+      capabilities:
+        drop: ["ALL"]
+    extraVolumeMounts: []
+    extraVolumes: []
+  # extra volcano log
+  logRotate:
+    path: "volcano"
+    content: |
+      /var/log/mindx-dl/volcano-*/*.log {    
+          daily     
+          rotate 8     
+          size 50M     
+          compress     
+          dateext     
+          missingok     
+          notifempty     
+          copytruncate     
+          create 0640 hwMindX hwMindX     
+          sharedscripts     
+          postrotate         
+              chmod 640 /var/log/mindx-dl/volcano-*/*.log                
+              chmod 440 /var/log/mindx-dl/volcano-*/*.log-*            
+          endscript 
+      }

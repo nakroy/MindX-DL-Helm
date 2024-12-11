@@ -1,0 +1,108 @@
+{{- if .Values.hcclController.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hccl-controller
+  namespace: mindx-dl
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pods-hccl-controller-role
+rules:
+  - apiGroups: ["batch.volcano.sh"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "update","watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get","list","watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "update"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: hccl-controller-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: hccl-controller
+    namespace: mindx-dl
+roleRef:
+  kind: ClusterRole
+  name: pods-hccl-controller-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hccl-controller
+  namespace: mindx-dl
+spec:
+  replicas: {{ .Values.hcclController.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: hccl-controller
+  template:
+    metadata:
+      labels:
+        app: hccl-controller
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+    spec:
+    {{- with .Values.hcclController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: hccl-controller
+      initContainers:
+        {{- include "initContainer.createDir" (dict 
+          "path" (include "extractPath" .Values.hcclController.args.logFile)
+          "owner" "hwMindX:hwMindX"
+          "mountPath" "/var/log/mindx-dl"
+        ) | nindent 8 }}
+      containers:
+        - name: hccl-controller
+          image: {{ .Values.hcclController.image.repository | default (printf "%s/%s" .Values.global.imageRegistry "hccl-controller") }}:{{ .Values.hcclController.image.tag | default .Values.global.imageTag }}
+        {{- with .Values.hcclController.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          imagePullPolicy: {{ .Values.hcclController.image.pullPolicy | default .Values.global.imagePullPolicy }}
+          command: [ "/bin/bash", "-c", "--"]
+          args:
+          - |
+            umask 027
+            hccl-controller {{ include "extraArgs" .Values.hcclController.args }}
+        {{- with .Values.hcclController.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          volumeMounts:
+          - name: device-hcclcontroller
+            mountPath: {{ .Values.hcclController.args.logFile | include "extractPath" }}
+          - name: localtime
+            mountPath: /etc/localtime
+            readOnly: true
+          {{- with .Values.hcclController.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+      volumes:
+      - name: mindx-dl-log
+        hostPath:
+          path: /var/log/mindx-dl
+          type: DirectoryOrCreate
+      - name: device-hcclcontroller
+        hostPath:
+          path: {{ .Values.hcclController.args.logFile | include "extractPath" }}
+          type: Directory
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      {{- with .Values.hcclController.extraVolumes }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- end }}

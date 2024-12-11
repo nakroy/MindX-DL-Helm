@@ -49,9 +49,6 @@ spec:
         seccomp.security.alpha.kubernetes.io/pod: runtime/default
       labels:
         app: npu-exporter
-      {{- if .Values.npuExporter.additionalLabels }}
-        {{- toYaml .Values.npuExporter.additionalLabels | nindent 8 }}
-      {{- end }}
     spec:
     {{- with .Values.npuExporter.nodeSelector }}
       nodeSelector:
@@ -73,9 +70,9 @@ spec:
           imagePullPolicy: {{ .Values.npuExporter.image.pullPolicy | default .Values.global.imagePullPolicy }}
           command: [ "/bin/bash", "-c", "--"]
           args:
-          - umask 027
-          - npu-exporter
-          {{- include "extraArgs" .Values.npuExporter.args | indent 10 }}
+          - |
+            umask 027
+            npu-exporter {{ include "extraArgs" .Values.npuExporter.args }}
         {{- with .Values.npuExporter.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

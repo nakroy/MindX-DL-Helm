@@ -40,9 +40,6 @@ spec:
     metadata:
       labels:
         app: noded
-      {{- if .Values.noded.additionalLabels }}
-        {{- toYaml .Values.noded.additionalLabels | nindent 8 }}
-      {{- end }}
       annotations:
         seccomp.security.alpha.kubernetes.io/pod: runtime/default
     spec:
@@ -72,8 +69,8 @@ spec:
           imagePullPolicy: {{ .Values.noded.image.pullPolicy | default .Values.global.imagePullPolicy }}
           command: [ "/bin/bash", "-c", "--" ]
           args:
-          - /usr/local/bin/noded
-          {{- include "extraArgs" .Values.noded.args | indent 10 }}
+          - |
+            /usr/local/bin/noded {{ include "extraArgs" .Values.noded.args }}
         {{- with .Values.noded.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
