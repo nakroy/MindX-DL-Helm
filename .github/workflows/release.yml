@@ -14,7 +14,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Step 2: 安装 Helm
+    # Step 2: 安装 Helm,版本自定义
     - name: Install Helm
       uses: azure/setup-helm@v3
       with:
