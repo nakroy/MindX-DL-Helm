@@ -1,19 +1,35 @@
+# 全局类型变量
 global:
-  # npuType: ["310p", "910", "310p-1usoc"]
+  # npuType: ["310", "310p", "910", "310p-1usoc"]
+  # npuType定义了集群中计算节点所包含的NPU型号种类，以列表形式定义
   npuType: ["910"]
+
+  # Kubernetes集群使用的容器运行时:
+  # "docker": Kubernetes 1.19+ ~ 1.23+, 使用docker作为容器运行时
+  # "cri-docker": Kubernetes 1.24+, 使用docker作为容器运行时
+  # "containerd": 使用containerd作为容器运行时
+  # "isulad": 使用ISulad作为容器运行时
   containerMode: "containerd"
+
+  # 全局镜像设置，若不单独为组件设置镜像拉取配置，则默认使用全局镜像设置
+  # 全局镜像拉取源
   imageRegistry: "wuzhou-harbor.com/mindx-dl"
+  # 全局镜像标签（除volcano组件外）
   imageTag: "v6.0.RC3"
+  # 全局镜像拉取策略
   imagePullPolicy: "IfNotPresent"
 
-####################
+# Ascend Device Plugin
 ascendDevicePlugin:
   enabled: true
-  withVolcano: true
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
+  
+  # ascend-device-plugin容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_019.html
   args:
     useAscendDocker: true
     volcanoType: true
@@ -21,17 +37,23 @@ ascendDevicePlugin:
     logFile: /var/log/mindx-dl/devicePlugin/devicePlugin.log
     logLevel: 0
     hotReset: -1
+  
+  # 自定义额外挂载的数据卷
+  extraVolumeMounts: []
+  extraVolumes: []
 
-##############
+# Ascend Operator
 ascendOperator:
   enabled: false
-  replicas: 1 
+  replicas: 1
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   nodeSelector:
     masterselector: dls-master-node
+  # 定义容器使用资源限制
   resources:
     requests:
       memory: 3Gi
@@ -39,12 +61,17 @@ ascendOperator:
     limits:
       memory: 3Gi
       cpu: 2000m
+  
+  # ascend-operator容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_025.html
   args:
     logLevel: 0
     logFile: /var/log/mindx-dl/ascend-operator/ascend-operator.log
     enableGangScheduling: true
     kubeApiQps: 800
     kubeApiBurst: 800
+
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
@@ -52,19 +79,23 @@ ascendOperator:
     runAsGroup: 9000
     capabilities:
       drop: ["All"]
+  
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
 
-####################
+# HCCL Controller
 hcclController:
   enabled: false
-  replicas: 1 
+  replicas: 1
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   nodeSelector:
     masterselector: dls-master-node
+  # 定义容器使用资源限制
   resources:
     requests:
       memory: 300Mi
@@ -72,6 +103,9 @@ hcclController:
     limits:
       memory: 300Mi
       cpu: 500m
+  
+  # hccl-controller容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_026.html
   args:
     logLevel: 0
     logFile: /var/log/mindx-dl/hccl-controller/hccl-controller.log
@@ -79,23 +113,29 @@ hcclController:
     podParallelism: 1
     kubeApiQps: 200
     kubeApiBurst: 200
+  
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
     capabilities:
       drop: ["ALL"]
+
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
 
-##################
+# NPU Exporter
 npuExporter:
   enabled: false
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   nodeSelector:
     workerselector: dls-worker-node
+  # 定义容器使用资源限制
   resources:
     requests:
         memory: 1000Mi
@@ -103,6 +143,9 @@ npuExporter:
     limits:
         memory: 1000Mi
         cpu: 1000m
+  
+  # npu-exporter容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_018.html
   args:
     port: 8082
     ip: 0.0.0.0
@@ -110,26 +153,33 @@ npuExporter:
     logFile: /var/log/mindx-dl/npu-exporter/npu-exporter.log
     logLevel: 0 
     containerMode: containerd
+  
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     privileged: true
     readOnlyRootFilesystem: true
     runAsUser: 0
     runAsGroup: 0
+  
+  # 是否挂载容器socket完整目录
   mountSock: false
-  mountSockPath: 
+  mountSockPath:
+
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
     
-####################
+# NodeD
 noded:
   enabled: false
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
-  additionalLabels: {}
   nodeSelector:
     workerselector: dls-worker-node
+  # 定义容器使用资源限制
   resources:
     requests:
       memory: 300Mi
@@ -137,26 +187,35 @@ noded:
     limits:
       memory: 300Mi
       cpu: 500m
+  
+  # noded容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_027.html
   args:
     heartbeatInterval: 5
     logLevel: 0
     logFile: /var/log/mindx-dl/noded/noded.log
+
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     readOnlyRootFilesystem: true
     privileged: true
+  
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
 
-##################
+# ClusterD
 clusterd:
   enabled: false
-  replicas: 1 
+  replicas: 1
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   nodeSelector:
     masterselector: dls-master-node
+  # 定义容器使用资源限制
   resources:
     requests:
       memory: 1Gi
@@ -164,28 +223,40 @@ clusterd:
     limits:
       memory: 1Gi
       cpu: 1000m
+
+  # ClusterD容器启动参数
+  # 详细参数说明参考： https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_024.html
   args:
     logLevel: 0
     logFile: /var/log/mindx-dl/clusterd/clusterd.log
+  
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     readOnlyRootFilesystem: true
+  
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
+
+  # ClusterD服务监听端口
   service:
     port: 8899
     targetPort: 8899
 
-#################
+# Resilience Controller
 resilienceController:
   enabled: true
   replicas: 1
+  # 是否使用新建的Service Account连接Kubernetes
   useServiceAccount: false
+  # 若未定义，则使用全局镜像设置
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   nodeSelector:
     masterselector: dls-master-node
+  # 定义容器使用资源限制
   resources:
     requests:
       memory: 300Mi
@@ -193,34 +264,50 @@ resilienceController:
     limits:
       memory: 300Mi
       cpu: 500m
+  
+  # resilience-controller容器启动参数
+  # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_029.html
   args:
     logLevel: 0
     logFile: /var/log/mindx-dl/resilience-controller/run.log
+  
+  # 容器安全上下文参数，建议保持默认设置
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
     capabilities:
       drop: ["ALL"]
+  
+  # 自定义额外挂载的数据卷
   extraVolumeMounts: []
   extraVolumes: []
 
-####################
+# Volcano
 volcano:
   enabled: false
+  # volcano版本选择，MindX-DL v6.0.RC3版本适配的volcano版本为"v1.7.0"和"v1.9.0"
   version: "v1.9.0"
+  # volcano部署的节点CPU架构，因为volcano的NPU插件区分不同节点架构，因此需要部署在指定的CPU架构节点上，可选择x86_64或aarch64
   arch: aarch64
-  # volcano scheduler
+
+  # volcano-scheduler配置
   scheduler:
+    # 是否开启nodeorder插件
     enableNodeOrder: false
+    # 是否开启大规模调度模式
     enableMultiSchedule: false
     replicas: 1
+    # 若未定义，则使用全局镜像设置
     image:
       repository: ""
       tag: ""
       pullPolicy: ""
     nodeSelector:
       masterselector: dls-master-node
+      # 若管理节点为混合架构，需要区分x86和arm架构的节点，保持与arch中定义的节点CPU架构保持一致
       beta.kubernetes.io/arch: arm64
+    # 定义容器使用资源限制
+    # 根据集群节点和Pod规模设置资源，参考：https://support.huaweicloud.com/usermanual-cce/cce_10_0193.html
     resources:
       requests:
         memory: 4Gi
@@ -228,6 +315,9 @@ volcano:
       limits:
         memory: 8Gi
         cpu: 5500m
+    
+    # volcano-scheduler容器配置参数
+    # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_021.html
     args:
       grace-over-time: 900
       presetVirtualDevice: true
@@ -237,6 +327,8 @@ volcano:
       super-pod-size: 48
       reserve-nodes: 2
     logDir: /var/log/mindx-dl/volcano-scheduler
+    
+    # 容器安全上下文参数，建议保持默认设置
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
@@ -244,6 +336,8 @@ volcano:
       runAsGroup: 9000
       capabilities:
         drop: ["ALL"]
+    
+    # volcano-scheduler性能监测服务
     service:
       enabled: true
       annotations:
@@ -252,11 +346,15 @@ volcano:
         prometheus.io/scrape: "true"
       port: 8080
       targetPort: 8080
+    
+    # 自定义额外挂载的数据卷
     extraVolumeMounts: []
     extraVolumes: []
-  # volcano controller
+
+  # volcano-controller配置
   controller:
     replicas: 1
+    # 若未定义，则使用全局镜像设置
     image:
       repository: ""
       tag: ""
@@ -264,6 +362,7 @@ volcano:
     nodeSelector:
       masterselector: dls-master-node
       beta.kubernetes.io/arch: arm64
+    # 定义容器使用资源限制
     resources:
       requests:
         memory: 3Gi
@@ -271,11 +370,16 @@ volcano:
       limits:
         memory: 3Gi
         cpu: 2000m
+    
+    # volcano-controller容器启动参数
+    # 详细参数说明参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc3/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_021.html
     args:
       kubeApiQps: 800
       kubeApiBurst: 800
       workerThreads: 6
       logDir: /var/log/mindx-dl/volcano-controller
+    
+    # 容器安全上下文参数，建议保持默认设置
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
@@ -283,9 +387,12 @@ volcano:
       runAsGroup: 9000
       capabilities:
         drop: ["ALL"]
+
+    # 自定义额外挂载的数据卷
     extraVolumeMounts: []
     extraVolumes: []
-  # extra volcano log
+
+  # volcano日志转储设置，参考：https://www.hiascend.com/document/detail/zh/mindx-dl/60rc2/clusterscheduling/clusterschedulingig/clusterschedulingig/dlug_installation_024.html
   logRotate:
     path: "volcano"
     content: |

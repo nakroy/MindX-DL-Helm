@@ -15,7 +15,8 @@ MindX DL是由华为昇腾开发的集群调度组件，基于业界流行的集
 添加`mindx-dl`仓库:
 
 ```shell
-helm repo add mindx-dl https://xxx
+helm repo add mindx-dl https://nakroy.github.io/MindX-DL-Helm/
+helm repo update
 ```
 
 ### 选择一

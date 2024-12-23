@@ -3,24 +3,13 @@ version: 0.3.0
 appVersion: v6.0.RC3
 name: mindx-dl
 type: application
-description: A Helm chart for Kubernetes
-
-# A chart can be either an 'application' or a 'library' chart.
-#
-# Application charts are a collection of templates that can be packaged into versioned archives
-# to be deployed.
-#
-# Library charts provide useful utilities or functions for the chart developer. They're included as
-# a dependency of application charts to inject those utilities and functions into the rendering
-# pipeline. Library charts do not define any templates and therefore cannot be deployed.
-
-
-# This is the chart version. This version number should be incremented each time you make changes
-# to the chart and its templates, including the app version.
-# Versions are expected to follow Semantic Versioning (https://semver.org/)
-
-
-# This is the version number of the application being deployed. This version number should be
-# incremented each time you make changes to the application. Versions are not expected to
-# follow Semantic Versioning. They should reflect the version the application is using.
-# It is recommended to use it with quotes.
+description: A MindX-DL Helm chart for Kubernetes
+keywords:
+  - mindx-dl
+  - cloud
+  - ascend
+sources:
+  - https://github.com/nakroy/MindX-DL-Helm/
+maintainers:
+  - name: nakroy
+    email: 1119388414@qq.com
