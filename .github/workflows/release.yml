@@ -1,0 +1,41 @@
+name: Release Helm Chart
+
+on:
+  push:
+    branches:
+      - main  # 在 main 分支推送时触发工作流
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: 检出代码
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: 安装 Helm
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: v3.13.0
+
+    # Step 3: 打包 Helm Chart
+    - name: Package Helm Chart
+      run: |
+        mkdir -p packages
+        helm package mindx-dl-chart -d packages/
+
+    # Step 4: 更新 index.yaml
+    - name: Update Helm Repo Index
+      run: |
+        helm repo index packages/ --url https://nakroy.github.io/MindX-DL-Helm/
+        mv packages/index.yaml .
+
+    # Step 5: 推送到 gh-pages 分支
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: gh-pages
+        publish_dir: packages
