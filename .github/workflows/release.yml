@@ -30,7 +30,6 @@ jobs:
     - name: Update Helm Repo Index
       run: |
         helm repo index packages/ --url https://nakroy.github.io/MindX-DL-Helm/
-        mv packages/index.yaml .
 
     # Step 5: 推送到 gh-pages 分支
     - name: Deploy to GitHub Pages
