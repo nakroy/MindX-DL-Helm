@@ -18,13 +18,13 @@ jobs:
     - name: Install Helm
       uses: azure/setup-helm@v3
       with:
-        version: v3.13.0
+        version: v3.16.2
 
     # Step 3: 打包 Helm Chart
     - name: Package Helm Chart
       run: |
         mkdir -p packages
-        helm package mindx-dl-chart -d packages/
+        helm package MindX-DL-Helm -d packages/
 
     # Step 4: 更新 index.yaml
     - name: Update Helm Repo Index
