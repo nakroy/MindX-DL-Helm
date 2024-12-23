@@ -24,7 +24,7 @@ jobs:
     - name: Package Helm Chart
       run: |
         mkdir -p packages
-        helm package MindX-DL-Helm -d packages/
+        helm package . -d packages/
 
     # Step 4: 更新 index.yaml
     - name: Update Helm Repo Index
