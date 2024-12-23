@@ -122,7 +122,7 @@ npuExporter:
     
 ####################
 noded:
-  enabled: true
+  enabled: false
   image:
     repository: ""
     tag: ""
@@ -149,7 +149,7 @@ noded:
 
 ##################
 clusterd:
-  enabled: true
+  enabled: false
   replicas: 1 
   image:
     repository: ""
@@ -177,9 +177,9 @@ clusterd:
 
 #################
 resilienceController:
-  enabled: false
+  enabled: true
   replicas: 1
-  useServiceAccount: true
+  useServiceAccount: false
   image:
     repository: ""
     tag: ""
@@ -206,7 +206,7 @@ resilienceController:
 
 ####################
 volcano:
-  enabled: true
+  enabled: false
   version: "v1.9.0"
   arch: aarch64
   # volcano scheduler

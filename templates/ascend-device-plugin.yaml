@@ -200,13 +200,13 @@ spec:
           - name: 310p-1usoc-script
             mountPath: /scripts/run_for_310P_1usoc.sh
             subPath: run_for_310P_1usoc.sh
-        {{- else if and (eq . "310p") $ascendDevicePlugin.withVolcano }}
+        {{- else if and (eq . "310p") $ascendDevicePlugin.args.volcanoType }}
           - name: vnpucfg
             mountPath: /etc/vnpu.cfg
         {{- else if eq . "910" }}
           - name: lingqu-log
             mountPath: /var/log/lingqu
-          {{- if $ascendDevicePlugin.withVolcano }}
+          {{- if $ascendDevicePlugin.args.volcanoType }}
           - name: reset-config-dir
             mountPath: /user/restore/reset
           - name: vnpucfg
@@ -268,7 +268,7 @@ spec:
       - name: 310p-1usoc-script
         configMap:
           name: 310p-1usoc-script
-    {{- else if and (eq . "310p") $ascendDevicePlugin.withVolcano }}
+    {{- else if and (eq . "310p") $ascendDevicePlugin.args.volcanoType }}
       - name: vnpucfg
         hostPath:
           path: /etc/vnpu.cfg
@@ -278,7 +278,7 @@ spec:
         hostPath:
           path: /var/log/lingqu
           type: DirectoryOrCreate
-      {{- if $ascendDevicePlugin.withVolcano }}
+      {{- if $ascendDevicePlugin.args.volcanoType }}
       - name : reset-config-dir
         hostPath:
           path: /user/restore/reset

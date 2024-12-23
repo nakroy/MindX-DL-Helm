@@ -72,7 +72,7 @@ spec:
         ) | nindent 8 }}
       containers:
         - name: resilience-controller
-          image: {{ .Values.resilienceController.image.repository | default (printf "%s/%s" .Values.global.imageRegistry "resilienceController") }}:{{ .Values.resilienceController.image.tag | default .Values.global.imageTag }}
+          image: {{ .Values.resilienceController.image.repository | default (printf "%s/%s" .Values.global.imageRegistry "resilience-controller") }}:{{ .Values.resilienceController.image.tag | default .Values.global.imageTag }}
         {{- with .Values.resilienceController.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -101,7 +101,7 @@ spec:
           - name: localtime
             mountPath: /etc/localtime
             readOnly: true
-        {{- if .Values.resilienceController.useServiceAccount }}
+        {{- if not .Values.resilienceController.useServiceAccount }}
           - name: kmckeystore
             mountPath: /etc/mindx-dl/kmc_primary_store
           - name: kmckeybak
@@ -121,16 +121,18 @@ spec:
       - name: localtime
         hostPath:
           path: /etc/localtime
-    {{- if .Values.resilienceController.useServiceAccount }}
+    {{- if not .Values.resilienceController.useServiceAccount }}
       - name: kmckeystore
         hostPath:
           path: /etc/mindx-dl/kmc_primary_store
-          type: Directory
+          type: DirectoryOrCreate
       - name: kmckeybak
         hostPath:
           path: /etc/mindx-dl/.config
+          type: DirectoryOrCreate
       - name: kmc-resilience
         hostPath:
           path: /etc/mindx-dl/resilience-controller
+          type: DirectoryOrCreate
     {{- end }}
 {{- end }}

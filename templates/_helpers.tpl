@@ -89,10 +89,12 @@ Generate an initContainer for creating a directory and setting permissions.
     - /bin/bash
     - -c
     - |
+    {{- if eq .owner "hwMindX:hwMindX" }}
       groupadd -g 1000 HwHiAiUser && \
       useradd -g HwHiAiUser -u 1000 -d /home/HwHiAiUser -m HwHiAiUser -s /bin/bash && \
       useradd -d /home/hwMindX -u 9000 -m -s /usr/sbin/nologin hwMindX && \
       usermod -a -G HwHiAiUser hwMindX && \
+    {{- end }}
       mkdir -p -m 750 {{ .path }} && \
       chown {{ .owner }} {{ .path }}
   volumeMounts:
@@ -125,4 +127,37 @@ Generate an initContainer for creating a directory, setting permissions, and man
       mountPath: {{ .mountPath }}
     - name: logrotate
       mountPath: /etc/logrotate.d
+{{- end -}}
+
+{{/*
+Generate an initContainer for creating a directory and setting permissions, and managing resilience controller configuration
+*/}}
+{{- define "initContainer.resilienceCreateDir" -}}
+- name: init-container
+  image: ubuntu:22.04
+  command:
+    - /bin/bash
+    - -c
+    - |
+      groupadd -g 1000 HwHiAiUser && \
+      useradd -g HwHiAiUser -u 1000 -d /home/HwHiAiUser -m HwHiAiUser -s /bin/bash && \
+      useradd -d /home/hwMindX -u 9000 -m -s /usr/sbin/nologin hwMindX && \
+      usermod -a -G HwHiAiUser hwMindX && \
+    {{- if not .useServiceAccount }}
+      mkdir -p /etc/mindx-dl/kmc_primary_store && \
+      chown {{ .owner }} /etc/mindx-dl/kmc_primary_store && \
+      mkdir -p /etc/mindx-dl/.config && \
+      chown {{ .owner }} /etc/mindx-dl/.config && \
+      mkdir -p /etc/mindx-dl/resilience-controller && \
+      chown {{ .owner }} /etc/mindx-dl/resilience-controller && \
+    {{- end }}
+      mkdir -p -m 750 {{ .path }} && \
+      chown {{ .owner }} {{ .path }}
+  volumeMounts:
+    - name: mindx-dl-log
+      mountPath: {{ .mountPath }}
+  {{- if not .useServiceAccount }}
+    - name: etc-mindx-dl
+      mountPath: /etc/mindx-dl
+  {{- end }}
 {{- end -}}

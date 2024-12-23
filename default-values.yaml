@@ -9,22 +9,21 @@ global:
 ####################
 ascendDevicePlugin:
   enabled: true
-  withVolcano: true
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
   args:
+    logLevel: 0
+    logFile: /var/log/mindx-dl/devicePlugin/devicePlugin.log
     useAscendDocker: true
     volcanoType: true
     presetVirtualDevice: true
-    logFile: /var/log/mindx-dl/devicePlugin/devicePlugin.log
-    logLevel: 0
     hotReset: -1
 
 ##############
 ascendOperator:
-  enabled: true
+  enabled: false
   replicas: 1 
   image:
     repository: ""
@@ -57,7 +56,7 @@ ascendOperator:
 
 ####################
 hcclController:
-  enabled: true
+  enabled: false
   replicas: 1 
   image:
     repository: ""
@@ -89,7 +88,7 @@ hcclController:
 
 ##################
 npuExporter:
-  enabled: true
+  enabled: false
   image:
     repository: ""
     tag: ""
@@ -104,11 +103,11 @@ npuExporter:
         memory: 1000Mi
         cpu: 1000m
   args:
+    logLevel: 0 
+    logFile: /var/log/mindx-dl/npu-exporter/npu-exporter.log
     port: 8082
     ip: 0.0.0.0
     updateTime: 5
-    logFile: /var/log/mindx-dl/npu-exporter/npu-exporter.log
-    logLevel: 0 
     containerMode: containerd
   securityContext:
     privileged: true
@@ -122,12 +121,11 @@ npuExporter:
     
 ####################
 noded:
-  enabled: true
+  enabled: false
   image:
     repository: ""
     tag: ""
     pullPolicy: ""
-  additionalLabels: {}
   nodeSelector:
     workerselector: dls-worker-node
   resources:
@@ -138,18 +136,18 @@ noded:
       memory: 300Mi
       cpu: 500m
   args:
-    heartbeatInterval: 5
     logLevel: 0
     logFile: /var/log/mindx-dl/noded/noded.log
+    heartbeatInterval: 5
   securityContext:
-    readOnlyRootFilesystem: true
     privileged: true
+    readOnlyRootFilesystem: true
   extraVolumeMounts: []
   extraVolumes: []
 
 ##################
 clusterd:
-  enabled: true
+  enabled: false
   replicas: 1 
   image:
     repository: ""
@@ -169,17 +167,17 @@ clusterd:
     logFile: /var/log/mindx-dl/clusterd/clusterd.log
   securityContext:
     readOnlyRootFilesystem: true
-  extraVolumeMounts: []
-  extraVolumes: []
   service:
     port: 8899
     targetPort: 8899
+  extraVolumeMounts: []
+  extraVolumes: []
 
 #################
 resilienceController:
   enabled: true
   replicas: 1
-  useServiceAccount: true
+  useServiceAccount: false
   image:
     repository: ""
     tag: ""
@@ -206,7 +204,7 @@ resilienceController:
 
 ####################
 volcano:
-  enabled: true
+  enabled: false
   version: "v1.9.0"
   arch: aarch64
   # volcano scheduler
@@ -283,25 +281,25 @@ volcano:
       runAsGroup: 9000
       capabilities:
         drop: ["ALL"]
+    # extra volcano log
+    logRotate:
+      path: "volcano"
+      content: |
+        /var/log/mindx-dl/volcano-*/*.log {    
+            daily     
+            rotate 8     
+            size 50M     
+            compress     
+            dateext     
+            missingok     
+            notifempty     
+            copytruncate     
+            create 0640 hwMindX hwMindX     
+            sharedscripts     
+            postrotate         
+                chmod 640 /var/log/mindx-dl/volcano-*/*.log                
+                chmod 440 /var/log/mindx-dl/volcano-*/*.log-*            
+            endscript 
+        }
     extraVolumeMounts: []
     extraVolumes: []
-  # extra volcano log
-  logRotate:
-    path: "volcano"
-    content: |
-      /var/log/mindx-dl/volcano-*/*.log {    
-          daily     
-          rotate 8     
-          size 50M     
-          compress     
-          dateext     
-          missingok     
-          notifempty     
-          copytruncate     
-          create 0640 hwMindX hwMindX     
-          sharedscripts     
-          postrotate         
-              chmod 640 /var/log/mindx-dl/volcano-*/*.log                
-              chmod 440 /var/log/mindx-dl/volcano-*/*.log-*            
-          endscript 
-      }
