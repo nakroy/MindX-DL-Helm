@@ -3,9 +3,9 @@ entries:
   mindx-dl:
   - apiVersion: v2
     appVersion: v6.0.RC3
-    created: "2024-12-23T07:28:25.663187322Z"
+    created: "2024-12-24T02:24:59.479579561Z"
     description: A MindX-DL Helm chart for Kubernetes
-    digest: 7eb43e36d979721ea9372302dc35e28ea822849b448d924348c20b3bfb64e211
+    digest: 3c8959fd9b002cc692f856d7a71744e21d66a1f0be34fbd1e230e820014ab3b3
     keywords:
     - mindx-dl
     - cloud
@@ -20,4 +20,4 @@ entries:
     urls:
     - https://nakroy.github.io/MindX-DL-Helm/mindx-dl-v0.3.0.tgz
     version: v0.3.0
-generated: "2024-12-23T07:28:25.656885719Z"
+generated: "2024-12-24T02:24:59.473401734Z"
