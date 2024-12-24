@@ -13,7 +13,7 @@ global:
 
   # 全局镜像设置，若不单独为组件设置镜像拉取配置，则默认使用全局镜像设置
   # 全局镜像拉取源
-  imageRegistry: "wuzhou-harbor.com/mindx-dl"
+  imageRegistry: ""
   # 全局镜像标签（除volcano组件外）
   imageTag: "v6.0.RC3"
   # 全局镜像拉取策略
